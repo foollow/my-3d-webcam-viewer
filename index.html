@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FBX 摄像头动作模仿</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            background-color: #282c34;
+            color: #f0f0f0;
+            overflow: hidden; /* Hide scrollbars if canvas is too big */
+        }
+        #status {
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            min-height: 20px;
+        }
+        #canvasContainer {
+            width: 80vw; /* Responsive width */
+            max-width: 720px; /* Max width */
+            height: 60vh; /* Responsive height */
+            max-height: 540px; /* Max height */
+            border: 1px solid #555;
+            background-color: #333842;
+            position: relative; /* For absolute positioning of video if shown */
+        }
+        #webcamVideo {
+            /* For debugging - show the webcam feed */
+            /* display: block !important;
+            width: 160px;
+            height: 120px;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            border: 1px solid blue;
+            z-index: 10;
+            transform: scaleX(-1); /* Mirror image */
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm/dist/tf-backend-wasm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/loaders/FBXLoader.js"></script>
+    </head>
+<body>
+    <div id="status">正在初始化...</div>
+    <video id="webcamVideo" autoplay playsinline muted style="display: none;"></video>
+    <div id="canvasContainer">
+        </div>
+
+    <script src="script_3d.js"></script>
+</body>
+</html>
