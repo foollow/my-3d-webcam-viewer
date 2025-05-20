@@ -124,7 +124,7 @@ async function loadFBXModel(path) {
     return new Promise((resolve, reject) => {
         loader.load(path, (fbx) => {
             characterModel = fbx;
-            characterModel.scale.set(0.2, 0.2, 0.2); // 根据您的模型调整缩放
+            characterModel.scale.set(0.05, 0.05, 0.05); // 根据您的模型调整缩放
             characterModel.position.set(0, 0.1, 0);     // 根据您的模型调整位置 (通常Y为0使其站在地面上)
 
             characterBones = {}; // 重置
