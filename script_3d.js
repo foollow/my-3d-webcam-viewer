@@ -126,7 +126,7 @@ async function loadFBXModel(path) {
             characterModel = fbx;
             characterModel.rotation.y = -Math.PI / 2;
             characterModel.scale.set(0.02, 0.02, 0.02); // 根据您的模型调整缩放
-            characterModel.position.set(0, 0, 0);     // 根据您的模型调整位置 (通常Y为0使其站在地面上)
+            characterModel.position.set(0, 10, 0);     // 根据您的模型调整位置 (通常Y为0使其站在地面上)
             const box = new THREE.Box3().setFromObject(characterModel); // BoundingBox会基于旋转和缩放后的模型计算
             characterModel.position.y = -box.min.y;
             // 如果您之前是手动设置 characterModel.position.set(0, Y_VAL, 0);
