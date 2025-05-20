@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FBX 摄像头动作模仿</title>
     <style>
-        body {
+        body { /* 确保body和html占满以便flex布局生效 */
             font-family: sans-serif;
             display: flex;
             flex-direction: column;
@@ -13,7 +13,8 @@
             margin: 0;
             background-color: #282c34;
             color: #f0f0f0;
-            overflow: hidden; /* Hide scrollbars if canvas is too big */
+            min-height: 100vh; /* 保证内容区域至少占满整个视窗高度 */
+            overflow: hidden;
         }
         #status {
             margin-top: 10px;
@@ -22,13 +23,13 @@
             min-height: 20px;
         }
         #canvasContainer {
-            width: 80vw; /* Responsive width */
-            max-width: 720px; /* Max width */
-            height: 60vh; /* Responsive height */
-            max-height: 540px; /* Max height */
+            width: 80vw;
+            max-width: 720px;
+            height: 60vh; /* 您可以根据需要调整，或让JS控制 */
+            max-height: 540px;
             border: 1px solid #555;
             background-color: #333842;
-            position: relative; /* For absolute positioning of video if shown */
+            position: relative;
         }
         #webcamVideo {
             /* For debugging - show the webcam feed */
@@ -48,8 +49,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm/dist/tf-backend-wasm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.150.0/examples/js/loaders/FBXLoader.js"></script>
     </head>
 <body>
     <div id="status">正在初始化...</div>
@@ -57,6 +56,6 @@
     <div id="canvasContainer">
         </div>
 
-    <script src="script_3d.js"></script>
+    <script type="module" src="script_3d.js"></script>
 </body>
 </html>
