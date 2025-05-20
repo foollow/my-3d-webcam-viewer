@@ -9,30 +9,28 @@
             font-family: sans-serif;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            align-items: stretch;
             margin: 0;
-            background-color: #282c34; /* 深色背景 */
-            color: #f0f0f0;          /* 浅色文字 */
-            min-height: 100vh;       /* 保证内容区域至少占满整个视窗高度 */
-            overflow: hidden;        /* 避免不必要的滚动条 */
+            background-color: #282c34;
+            color: #f0f0f0;
+            height: 100vh;
+            overflow: hidden;
         }
         #status {
             margin-top: 10px;
             margin-bottom: 10px;
             font-size: 1.1em;
-            min-height: 20px; /* 给状态文本留出空间 */
+            min-height: 20px;
             text-align: center;
+            flex-shrink: 0;
         }
         #canvasContainer {
-            /* 视口单位，使其相对灵活，可以根据需要调整或让JS控制 */
-            width: 80vw;            /* 视口宽度的80% */
-            max-width: 720px;       /* 最大宽度 */
-            height: 60vh;           /* 视口高度的60% */
-            max-height: 540px;      /* 最大高度 */
-            border: 1px solid #555; /* 边框颜色 */
-            background-color: #333842; /* 画布容器背景 */
-            position: relative;     /* 用于可能的内部绝对定位元素 */
-            box-shadow: 0 0 10px rgba(0,0,0,0.5); /* 轻微阴影增加立体感 */
+            flex-grow: 1;
+            width: 100%;
+            border: none;
+            background-color: #333842;
+            position: relative;
+            box-shadow: none;
         }
         #webcamVideo {
             /* 默认隐藏，如果需要调试可以暂时显示 */
