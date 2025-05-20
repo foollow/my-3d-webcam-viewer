@@ -3,36 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FBX 摄像头动作模仿</title>
+    <title>FBX 摄像头动作模仿 (ESM with Import Map)</title>
     <style>
-        body { /* 确保body和html占满以便flex布局生效 */
+        body {
             font-family: sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             margin: 0;
-            background-color: #282c34;
-            color: #f0f0f0;
-            min-height: 100vh; /* 保证内容区域至少占满整个视窗高度 */
-            overflow: hidden;
+            background-color: #282c34; /* 深色背景 */
+            color: #f0f0f0;          /* 浅色文字 */
+            min-height: 100vh;       /* 保证内容区域至少占满整个视窗高度 */
+            overflow: hidden;        /* 避免不必要的滚动条 */
         }
         #status {
             margin-top: 10px;
             margin-bottom: 10px;
             font-size: 1.1em;
-            min-height: 20px;
+            min-height: 20px; /* 给状态文本留出空间 */
+            text-align: center;
         }
         #canvasContainer {
-            width: 80vw;
-            max-width: 720px;
-            height: 60vh; /* 您可以根据需要调整，或让JS控制 */
-            max-height: 540px;
-            border: 1px solid #555;
-            background-color: #333842;
-            position: relative;
+            /* 视口单位，使其相对灵活，可以根据需要调整或让JS控制 */
+            width: 80vw;            /* 视口宽度的80% */
+            max-width: 720px;       /* 最大宽度 */
+            height: 60vh;           /* 视口高度的60% */
+            max-height: 540px;      /* 最大高度 */
+            border: 1px solid #555; /* 边框颜色 */
+            background-color: #333842; /* 画布容器背景 */
+            position: relative;     /* 用于可能的内部绝对定位元素 */
+            box-shadow: 0 0 10px rgba(0,0,0,0.5); /* 轻微阴影增加立体感 */
         }
         #webcamVideo {
-            /* For debugging - show the webcam feed */
+            /* 默认隐藏，如果需要调试可以暂时显示 */
             /* display: block !important;
             width: 160px;
             height: 120px;
@@ -41,9 +44,19 @@
             left: 10px;
             border: 1px solid blue;
             z-index: 10;
-            transform: scaleX(-1); /* Mirror image */
+            transform: scaleX(-1); */ /* 镜像，如果摄像头画面需要镜像显示 */
         }
     </style>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.module.js",
+            "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.150.0/examples/jsm/"
+        }
+    }
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm/dist/tf-backend-wasm.js"></script>
@@ -52,9 +65,10 @@
     </head>
 <body>
     <div id="status">正在初始化...</div>
+
     <video id="webcamVideo" autoplay playsinline muted style="display: none;"></video>
-    <div id="canvasContainer">
-        </div>
+
+    <div id="canvasContainer"></div>
 
     <script type="module" src="script_3d.js"></script>
 </body>
