@@ -304,3 +304,132 @@ function updateCharacterPose(pose) {
             const angle = Math.atan2(
                 (1 - (ls.y + rs.y) / 2 / VIDEO_HEIGHT) - (1 - (lh.y + rh.y) / 2 / VIDEO_HEIGHT), // Y diff
                 (shoulderMidX / VIDEO_WIDTH) - (hipMidX / VIDEO_WIDTH)  // X diff
+            );
+            // Apply a rotation around Z axis (if model is Y-up) or Y axis (if Z-up)
+            // This is a very crude hip rotation.
+            const hipsBone = characterBones[hipsBoneName];
+            const initialRot = initialBoneData[hipsBoneName].initialQuaternion;
+            // Assuming model is Y-up, and hips twisting is around Y
+            const twistQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), angle - Math.PI/2);
+            // hipsBone.quaternion.copy(initialRot).multiply(twistQuat);
+        }
+    }
+
+
+    // --- Orient Limbs ---
+    // (kp1_name, kp2_name, bone_map_key_for_bone_between_kp1_and_kp2, primary_axis_of_bone)
+    const limbSegments = [
+        { start: 'left_shoulder', end: 'left_elbow', boneKey: 'left_arm' },
+        { start: 'left_elbow', end: 'left_wrist', boneKey: 'left_elbow' }, // Note: 'left_elbow' here is the FOREARM bone
+        { start: 'right_shoulder', end: 'right_elbow', boneKey: 'right_arm' },
+        { start: 'right_elbow', end: 'right_wrist', boneKey: 'right_elbow' },
+        { start: 'left_hip', end: 'left_knee', boneKey: 'left_hip' }, // 'left_hip' is UPLEG bone
+        { start: 'left_knee', end: 'left_ankle', boneKey: 'left_knee' }, // 'left_knee' is LEG bone
+        { start: 'right_hip', end: 'right_knee', boneKey: 'right_hip' },
+        { start: 'right_knee', end: 'right_ankle', boneKey: 'right_knee' },
+    ];
+
+    limbSegments.forEach(seg => {
+        const boneName = boneMapping[seg.boneKey];
+        const bone = characterBones[boneName];
+        const initialRot = initialBoneData[boneName]?.initialQuaternion;
+
+        if (bone && initialRot) {
+            const direction = getDirectionVector(seg.start, seg.end, keypointsMap, poseCenterZ);
+            if (direction) {
+                updateBoneTransform(bone, direction, initialRot, BONE_PRIMARY_AXIS.clone(), BONE_UP_AXIS.clone());
+            }
+        }
+    });
+
+    // --- Head Orientation (Simplified) ---
+    const headBoneName = boneMapping['head'];
+    const neckBoneName = boneMapping['neck'];
+    const headBone = characterBones[headBoneName];
+    const neckBone = characterBones[neckBoneName];
+
+    if (headBone && initialBoneData[headBoneName]?.initialQuaternion) {
+        const nose = keypointsMap.get('nose');
+        const leftEar = keypointsMap.get('left_ear');
+        const rightEar = keypointsMap.get('right_ear');
+
+        if (nose && leftEar && rightEar && nose.score > 0.3 && leftEar.score > 0.3 && rightEar.score > 0.3) {
+             // Simplified: Make head look slightly up/down based on nose Y relative to ears Y
+            const earMidY = (leftEar.y + rightEar.y) / 2;
+            const tilt = (nose.y - earMidY) * 0.01; // Small factor
+
+            // Pan left/right based on nose X relative to ears X (mirrored)
+            const earMidX = VIDEO_WIDTH - (leftEar.x + rightEar.x) / 2;
+            const noseX = VIDEO_WIDTH - nose.x;
+            const pan = (noseX - earMidX) * 0.01;
+
+            const initialRot = initialBoneData[headBoneName].initialQuaternion;
+            const tiltQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), -tilt); // Tilt around X
+            const panQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), pan);   // Pan around Y
+
+            headBone.quaternion.copy(initialRot).multiply(panQuat).multiply(tiltQuat);
+
+            // Neck can try to follow head slightly or be oriented by shoulder-nose vector
+            if (neckBone && initialBoneData[neckBoneName]?.initialQuaternion) {
+                const neckInitialRot = initialBoneData[neckBoneName].initialQuaternion;
+                neckBone.quaternion.copy(neckInitialRot).slerp(headBone.quaternion, 0.3); // Neck follows head with some lag/damping
+            }
+        }
+    }
+}
+
+
+// --- Main Animation Loop ---
+async function predictAndAnimate() {
+    if (!detector || videoElement.readyState < HTMLMediaElement.HAVE_METADATA) {
+        rafId = requestAnimationFrame(predictAndAnimate);
+        return;
+    }
+
+    try {
+        const poses = await detector.estimatePoses(videoElement, {
+            flipHorizontal: false, // Input to MoveNet should be non-mirrored
+            // maxPoses: 1 // Already default for single pose models
+        });
+
+        if (poses && poses.length > 0) {
+            updateCharacterPose(poses[0]);
+        }
+    } catch (error) {
+        console.error("Error during pose estimation or animation:", error);
+        // Stop animation to prevent infinite loop on error
+        // cancelAnimationFrame(rafId);
+        // statusElement.textContent = "动画错误，请检查控制台。";
+    }
+
+    renderer.render(scene, camera);
+    rafId = requestAnimationFrame(predictAndAnimate);
+}
+
+// --- Application Start ---
+async function main() {
+    statusElement.textContent = '应用启动中...';
+    try {
+        initThree();
+        await loadPoseDetector();
+        await setupWebcam(); // This will set videoAspectRatio
+        await loadFBXModel(MODEL_PATH); // Load your specific model
+
+        statusElement.textContent = '准备就绪。请对准摄像头开始动作。';
+        predictAndAnimate();
+
+    } catch (error) {
+        console.error("初始化失败:", error);
+        statusElement.textContent = `初始化过程中发生严重错误: ${error.message || error}`;
+    }
+}
+
+window.addEventListener('load', main);
+
+window.addEventListener('beforeunload', () => {
+    if (rafId) cancelAnimationFrame(rafId);
+    if (detector) detector.dispose();
+    if (videoElement.srcObject) {
+        videoElement.srcObject.getTracks().forEach(track => track.stop());
+    }
+});
