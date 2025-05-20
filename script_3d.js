@@ -1,6 +1,6 @@
 // script_3d.js 文件顶部
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.150.0/build/three.module.js';
-import { FBXLoader } from './FBXLoader.module.js'; // 确保这个路径和您保存的文件名一致
+import * as THREE from 'three'; // Import Map 会将其解析为CDN链接
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'; // Import Map 会处理这个路径
 
 const videoElement = document.getElementById('webcamVideo');
 const statusElement = document.getElementById('status');
