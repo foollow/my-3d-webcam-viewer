@@ -32,26 +32,32 @@ let rafId; // requestAnimationFrame ID
 // 您必须将这些字符串值更新为您的FBX模型中实际的骨骼名称。
 // 请在浏览器控制台中查看 "Discovered bones:" 输出以找到正确的名称。
 const boneMapping = {
-    // MoveNet Keypoint : Your FBX Bone Name
-    'hips': 'mixamorig_Hips',
-    'left_hip': 'mixamorig_LeftUpLeg',
-    'left_knee': 'mixamorig_LeftLeg',
-    'left_ankle': 'mixamorig_LeftFoot',
-    'right_hip': 'mixamorig_RightUpLeg',
-    'right_knee': 'mixamorig_RightLeg',
-    'right_ankle': 'mixamorig_RightFoot',
-    // 'spine': 'mixamorig_Spine', // 可能需要多个脊柱骨骼
-    'chest': 'mixamorig_Spine2', // 或 'mixamorig_Chest'
-    'neck': 'mixamorig_Neck',
-    'head': 'mixamorig_Head',
-    'left_shoulder': 'mixamorig_LeftShoulder', // 在某些绑定中可能是锁骨
-    'left_arm': 'mixamorig_LeftArm',        // 上臂骨骼
-    'left_elbow': 'mixamorig_LeftForeArm',   // 前臂骨骼 (MoveNet的elbow关键点通常用于定位此前臂)
-    'left_wrist': 'mixamorig_LeftHand',
-    'right_shoulder': 'mixamorig_RightShoulder',
-    'right_arm': 'mixamorig_RightArm',
-    'right_elbow': 'mixamorig_RightForeArm',
-    'right_wrist': 'mixamorig_RightHand',
+    // MoveNet Keypoint : Your Actual FBX Bone Name
+    'hips': 'mixamorigHips',
+    'left_hip': 'mixamorigLeftUpLeg',
+    'left_knee': 'mixamorigLeftLeg',
+    'left_ankle': 'mixamorigLeftFoot',
+    'right_hip': 'mixamorigRightUpLeg',
+    'right_knee': 'mixamorigRightLeg',
+    'right_ankle': 'mixamorigRightFoot',
+
+    // 对于 'chest'，您的模型有 'mixamorigSpine', 'mixamorigSpine1', 'mixamorigSpine2'
+    // 'mixamorigSpine2' 通常对应上脊柱/胸部，是一个常用选择。
+    // 如果需要更精细的控制，您可能需要分别映射 Spine, Spine1, Spine2。
+    'chest': 'mixamorigSpine2',
+
+    'neck': 'mixamorigNeck',
+    'head': 'mixamorigHead',
+
+    'left_shoulder': 'mixamorigLeftShoulder', // 通常是肩胛骨或肩部起始骨骼
+    'left_arm': 'mixamorigLeftArm',          // 上臂 (MoveNet的 'left_shoulder' 和 'left_elbow' 关键点通常一起决定此骨骼朝向)
+    'left_elbow': 'mixamorigLeftForeArm',     // 前臂 (MoveNet的 'left_elbow' 和 'left_wrist' 关键点通常一起决定此骨骼朝向)
+    'left_wrist': 'mixamorigLeftHand',
+
+    'right_shoulder': 'mixamorigRightShoulder',
+    'right_arm': 'mixamorigRightArm',
+    'right_elbow': 'mixamorigRightForeArm',
+    'right_wrist': 'mixamorigRightHand',
 };
 
 // --- Three.js Initialization ---
