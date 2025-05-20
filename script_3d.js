@@ -1,52 +1,58 @@
-// script_3d.js 文件顶部
-import * as THREE from 'three'; // Import Map 会将其解析为CDN链接
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'; // Import Map 会处理这个路径
+// script_3d.js
 
+// 1. ES Module Imports (由 index.html 中的 Import Map 解析)
+import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+// 如果您需要 OrbitControls 或其他 JSM 模块，也在这里导入，例如:
+// import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+// --- DOM Elements ---
 const videoElement = document.getElementById('webcamVideo');
 const statusElement = document.getElementById('status');
 const canvasContainer = document.getElementById('canvasContainer');
 
-let detector; // TensorFlow.js pose detector
-let characterModel, characterBones = {}, initialBoneData = {}; // Three.js model and bone data
-let scene, camera, renderer, clock; // Three.js essentials
-let videoAspectRatio = 4 / 3; // Default, will be updated
-let rafId; // requestAnimationFrame ID
-
 // --- Configuration ---
-const MODEL_PATH = 'boneMapping.fbx'; // YOUR FBX FILE
-const VIDEO_WIDTH = 640; // Resolution for pose detection
+const MODEL_PATH = 'boneMapping.fbx'; // 您的FBX模型文件路径
+const VIDEO_WIDTH = 640; // Pose Detection 使用的分辨率
 const VIDEO_HEIGHT = 480;
 
-// Default bone axis (the axis that points "along" the bone's length in its local space)
-// This is a GUESS. For Mixamo models, it's often Y-up for the model, bones might point along X or Y.
-// You might need to experiment: new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), or new THREE.Vector3(0,0,1)
-const BONE_PRIMARY_AXIS = new THREE.Vector3(0, 1, 0); // Assumes Y-axis points along the bone length
-const BONE_UP_AXIS = new THREE.Vector3(0, 0, 1);      // Assumes Z-axis is the "up" for the bone's local space when orienting
+// 骨骼的局部主轴（指向骨骼长度方向的轴）- 这只是一个猜测，您可能需要调整
+const BONE_PRIMARY_AXIS = new THREE.Vector3(0, 1, 0); // 假设Y轴沿骨骼长度方向
+// 骨骼的局部上方向 - 用于 setFromUnitVectors
+// const BONE_UP_AXIS = new THREE.Vector3(0, 0, 1); // 假设Z轴是骨骼的“上”方向
 
-// ***** CRUCIAL: BONE MAPPING *****
-// YOU MUST UPDATE THESE STRING VALUES TO YOUR FBX MODEL'S ACTUAL BONE NAMES.
-// Use the console output "Discovered bones:" to find the correct names.
+// --- Global Variables ---
+let detector; // TensorFlow.js姿态检测器
+let characterModel, characterBones = {}, initialBoneData = {}; // 3D模型和骨骼数据
+let scene, camera, renderer, clock; // Three.js核心组件
+let videoAspectRatio = VIDEO_WIDTH / VIDEO_HEIGHT;
+let rafId; // requestAnimationFrame ID
+
+// ***** 关键：骨骼映射 *****
+// 您必须将这些字符串值更新为您的FBX模型中实际的骨骼名称。
+// 请在浏览器控制台中查看 "Discovered bones:" 输出以找到正确的名称。
 const boneMapping = {
     // MoveNet Keypoint : Your FBX Bone Name
-    'hips': 'mixamorig_Hips', // A central bone, often good as a root for relative movements
+    'hips': 'mixamorig_Hips',
     'left_hip': 'mixamorig_LeftUpLeg',
     'left_knee': 'mixamorig_LeftLeg',
     'left_ankle': 'mixamorig_LeftFoot',
     'right_hip': 'mixamorig_RightUpLeg',
     'right_knee': 'mixamorig_RightLeg',
     'right_ankle': 'mixamorig_RightFoot',
-    'left_shoulder': 'mixamorig_LeftShoulder', // This might be a clavicle in some rigs
-    'left_arm': 'mixamorig_LeftArm',        // Upper arm bone
-    'left_elbow': 'mixamorig_LeftForeArm',   // Forearm bone
-    'left_wrist': 'mixamorig_LeftHand',
-    'right_shoulder': 'mixamorig_RightShoulder',// Clavicle
-    'right_arm': 'mixamorig_RightArm',       // Upper arm
-    'right_elbow': 'mixamorig_RightForeArm',  // Forearm
-    'right_wrist': 'mixamorig_RightHand',
+    // 'spine': 'mixamorig_Spine', // 可能需要多个脊柱骨骼
+    'chest': 'mixamorig_Spine2', // 或 'mixamorig_Chest'
     'neck': 'mixamorig_Neck',
-    'head': 'mixamorig_Head' // Often controlled by 'nose' or average of eye keypoints
+    'head': 'mixamorig_Head',
+    'left_shoulder': 'mixamorig_LeftShoulder', // 在某些绑定中可能是锁骨
+    'left_arm': 'mixamorig_LeftArm',        // 上臂骨骼
+    'left_elbow': 'mixamorig_LeftForeArm',   // 前臂骨骼 (MoveNet的elbow关键点通常用于定位此前臂)
+    'left_wrist': 'mixamorig_LeftHand',
+    'right_shoulder': 'mixamorig_RightShoulder',
+    'right_arm': 'mixamorig_RightArm',
+    'right_elbow': 'mixamorig_RightForeArm',
+    'right_wrist': 'mixamorig_RightHand',
 };
-
 
 // --- Three.js Initialization ---
 function initThree() {
@@ -56,46 +62,49 @@ function initThree() {
     clock = new THREE.Clock();
 
     const containerRect = canvasContainer.getBoundingClientRect();
-    camera = new THREE.PerspectiveCamera(50, containerRect.width / containerRect.height, 0.1, 1000);
-    camera.position.set(0, 1.5, 2.5); // Adjust camera position to view your model well
-    camera.lookAt(0, 1, 0); // Look at a point slightly above the origin
+    const aspect = containerRect.width / containerRect.height;
+    camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 1000);
+    camera.position.set(0, 1.6, 3); // 调整相机位置以便很好地观察模型
+    camera.lookAt(0, 1, 0);       // 观察点大约在模型腰部
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(containerRect.width, containerRect.height);
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    canvasContainer.innerHTML = ''; // 清空容器，以防重复添加canvas
     canvasContainer.appendChild(renderer.domElement);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(3, 10, 5);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+    directionalLight.position.set(3, 10, 7);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 1024;
     directionalLight.shadow.mapSize.height = 1024;
     scene.add(directionalLight);
 
-    // Ground plane
     const groundGeo = new THREE.PlaneGeometry(20, 20);
-    const groundMat = new THREE.MeshPhongMaterial({ color: 0x444444, depthWrite: false });
+    const groundMat = new THREE.MeshPhongMaterial({ color: 0x444444, depthWrite: true });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // Optional: OrbitControls for debugging
-    // const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    // controls.target.set(0, 1, 0); // Adjust target to your model's typical height
+    // 可选: OrbitControls 用于调试
+    // const controls = new OrbitControls(camera, renderer.domElement);
+    // controls.target.set(0, 1, 0);
     // controls.update();
 
+    window.addEventListener('resize', onWindowResize);
     statusElement.textContent = '3D场景初始化完毕。';
-    window.addEventListener('resize', onWindowResize); // Handle window resize
 }
 
 function onWindowResize() {
     const containerRect = canvasContainer.getBoundingClientRect();
+    if (containerRect.width === 0 || containerRect.height === 0) return; // 容器不可见时不更新
+
     camera.aspect = containerRect.width / containerRect.height;
     camera.updateProjectionMatrix();
     renderer.setSize(containerRect.width, containerRect.height);
@@ -104,47 +113,42 @@ function onWindowResize() {
 // --- Load FBX Model ---
 async function loadFBXModel(path) {
     statusElement.textContent = '正在加载3D模型 (' + path + ')...';
-    const loader = new THREE.FBXLoader();
+    // **** 关键改动：直接使用导入的 FBXLoader ****
+    const loader = new FBXLoader();
     return new Promise((resolve, reject) => {
         loader.load(path, (fbx) => {
             characterModel = fbx;
-            // --- Adjust model scale and position as needed ---
-            characterModel.scale.set(0.01, 0.01, 0.01); // Example: if model is huge
-            characterModel.position.set(0, 0, 0);     // Example: center at origin's base
+            characterModel.scale.set(0.01, 0.01, 0.01); // 根据您的模型调整缩放
+            characterModel.position.set(0, 0, 0);     // 根据您的模型调整位置 (通常Y为0使其站在地面上)
 
-            console.log("FBX Model loaded:", characterModel);
+            characterBones = {}; // 重置
+            initialBoneData = {};
 
             characterModel.traverse(function (child) {
                 if (child.isMesh) {
                     child.castShadow = true;
                     child.receiveShadow = true;
-                    // Optional: Ensure materials are not overly shiny or basic
-                    if (child.material) {
+                    if (child.material) { // 确保材质存在
                         if (Array.isArray(child.material)) {
-                            child.material.forEach(m => { if(m.isMeshStandardMaterial) m.metalness = 0.3; });
+                            child.material.forEach(m => { if(m.isMeshStandardMaterial) m.metalness = 0.1; });
                         } else if (child.material.isMeshStandardMaterial) {
-                            child.material.metalness = 0.3;
+                            child.material.metalness = 0.1;
                         }
-                    }
+                     }
                 }
                 if (child.isBone) {
                     characterBones[child.name] = child;
-                    // Store initial rotation (quaternion) and world matrix for calculations
                     initialBoneData[child.name] = {
                         initialQuaternion: child.quaternion.clone(),
-                        // bindMatrix: child.matrixWorld.clone() // More advanced: for true retargeting
+                        // parent: child.parent // 可以存储父对象用于更复杂的计算
                     };
                 }
             });
 
             console.log("Discovered bones:", Object.keys(characterBones));
             if (Object.keys(characterBones).length === 0) {
-                const msg = "警告: 模型中未找到骨骼！请确保FBX文件已绑定骨骼。动画将无法进行。";
-                console.warn(msg);
-                statusElement.textContent = msg;
-                // reject(new Error(msg)); return; // Or stop further execution
+                console.warn("模型中未找到骨骼！请确保FBX文件已绑定骨骼。");
             } else {
-                 // Verify boneMapping
                 let allMappedBonesFound = true;
                 for (const key in boneMapping) {
                     if (boneMapping[key] && !characterBones[boneMapping[key]]) {
@@ -152,22 +156,15 @@ async function loadFBXModel(path) {
                         allMappedBonesFound = false;
                     }
                 }
-                if (!allMappedBonesFound) {
-                    statusElement.textContent = "警告: 部分骨骼映射名在模型中未找到，请检查控制台和boneMapping对象。";
-                } else {
-                     statusElement.textContent = '3D模型加载完毕并已解析骨骼。';
-                }
+                statusElement.textContent = allMappedBonesFound ? '3D模型加载并解析完毕。' : "警告: 部分骨骼映射名在模型中未找到。";
             }
             scene.add(characterModel);
             resolve(fbx);
         },
-        (xhr) => { // Progress callback
-            const progress = (xhr.loaded / xhr.total) * 100;
-            statusElement.textContent = `正在加载3D模型: ${Math.round(progress)}%`;
-        },
+        (xhr) => { statusElement.textContent = `加载3D模型: ${Math.round((xhr.loaded / xhr.total) * 100)}%`; },
         (error) => {
             console.error("FBX加载错误:", error);
-            statusElement.textContent = 'FBX模型加载失败。请检查文件路径和控制台错误。';
+            statusElement.textContent = 'FBX模型加载失败。';
             reject(error);
         });
     });
@@ -175,7 +172,7 @@ async function loadFBXModel(path) {
 
 // --- Webcam and Pose Detection Setup ---
 async function setupWebcam() {
-    statusElement.textContent = '正在请求摄像头权限...';
+    statusElement.textContent = '请求摄像头权限...';
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT },
@@ -192,215 +189,190 @@ async function setupWebcam() {
         });
     } catch (e) {
         console.error('获取摄像头权限失败:', e);
-        statusElement.textContent = '获取摄像头权限失败。请检查设置并刷新页面。';
-        alert('摄像头访问被拒绝或不可用。');
+        statusElement.textContent = '摄像头权限失败。';
+        alert('摄像头访问被拒绝或不可用。请检查浏览器设置并刷新页面。');
         throw e;
     }
 }
 
 async function loadPoseDetector() {
-    statusElement.textContent = '正在加载姿态识别模型...';
-    await tf.setBackend('wasm'); // Using WebAssembly for performance
+    statusElement.textContent = '加载姿态识别模型...';
+    // TensorFlow.js 后端和模型加载
+    // @ts-ignore
+    await tf.setBackend('wasm'); // 或者 'webgl'
+    // @ts-ignore
     await tf.ready();
+    // @ts-ignore
     const model = poseDetection.SupportedModels.MoveNet;
-    // SINGLEPOSE_LIGHTNING is faster, THUNDER is more accurate
-    detector = await poseDetection.createDetector(model, { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING });
+    detector = await poseDetection.createDetector(model, {
+        // @ts-ignore
+        modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING, // 或 THUNDER
+        // enableSmoothing: true // 可以考虑开启
+    });
     statusElement.textContent = '姿态模型加载完毕。';
 }
 
-
-// --- Pose to 3D Model Animation ---
-function getScreenKeypoint(name, keypointsMap, isMirrored = true) {
-    const kp = keypointsMap.get(name);
-    if (!kp || kp.score < 0.3) return null; // Confidence threshold
-
-    // Keypoints from MoveNet are for non-mirrored video.
-    // If your videoElement is visually mirrored (transform: scaleX(-1)),
-    // then the X-coordinates need to be flipped for correct mapping.
-    let x = kp.x;
-    if (isMirrored) {
-        x = VIDEO_WIDTH - kp.x;
+// --- Pose to 3D Model Animation Logic (Simplified) ---
+function getKeypointsMap(pose) {
+    const map = new Map();
+    if (pose && pose.keypoints) {
+        pose.keypoints.forEach(kp => map.set(kp.name, kp));
     }
-    return new THREE.Vector3(x / VIDEO_WIDTH, 1.0 - (kp.y / VIDEO_HEIGHT), kp.z || 0); // Normalize Z if present
+    return map;
 }
 
-
-// Helper to get a world direction vector from two keypoints
-function getDirectionVector(kpName1, kpName2, keypointsMap, poseCenterZ = 0.5) {
+// 辅助函数：从2D关键点获取伪3D世界方向向量 (需要大量调整以匹配模型和场景)
+function getDirectionVector(kpName1, kpName2, keypointsMap, poseCenterZ = 0.0) {
     const p1 = keypointsMap.get(kpName1);
     const p2 = keypointsMap.get(kpName2);
 
-    if (!p1 || p1.score < 0.3 || !p2 || p2.score < 0.3) return null;
+    if (!p1 || p1.score < 0.2 || !p2 || p2.score < 0.2) return null; // 置信度阈值
 
-    // Flip X if video is mirrored for display (assuming keypoints are from original non-mirrored feed)
-    const p1x = VIDEO_WIDTH - p1.x;
+    // 假设视频流在videoElement中没有CSS镜像，MoveNet输出的是基于原始视频帧的坐标
+    // 如果videoElement在CSS中镜像了，而MoveNet未镜像，那么X坐标需要翻转
+    // 这里我们假设最终的X坐标是“屏幕所见”的镜像（即用户挥右手，模型同侧的肢体动）
+    const p1x = VIDEO_WIDTH - p1.x; // 翻转X坐标以匹配用户视觉
     const p2x = VIDEO_WIDTH - p2.x;
 
-    // Create pseudo 3D points.
-    // This is a simplification: X and Y are scaled from screen, Z is from MoveNet (relative depth)
-    // The scaling factors (e.g., 2 for X, 1.5 for Y) are empirical and might need tuning for your scene/model.
+    // 将2D关键点转换为一个简化的3D空间向量
+    // X, Y 归一化到 [-1, 1] 或类似范围，Z 来自MoveNet (相对深度)
+    // 这些缩放因子 (X_SCALE, Y_SCALE, Z_SCALE) 需要根据模型大小和相机视野进行大量调整！
+    const X_SCALE = 2.0; // 场景宽度的大致范围
+    const Y_SCALE = 2.0; // 场景高度的大致范围
+    const Z_SCALE = 1.0; // Z深度的缩放
+
     const v1 = new THREE.Vector3(
-        (p1x / VIDEO_WIDTH - 0.5) * 2,      // Map to -1 to 1 range, scale for scene width
-        (1 - p1.y / VIDEO_HEIGHT - 0.5) * 1.5, // Map to -0.75 to 0.75 for scene height
-        (p1.z || 0) * 0.5 + poseCenterZ      // Use MoveNet's Z, scale and offset
+        (p1x / VIDEO_WIDTH - 0.5) * X_SCALE,
+        (1 - p1.y / VIDEO_HEIGHT - 0.5) * Y_SCALE, // Y轴翻转并居中
+        (p1.z || 0) * Z_SCALE + poseCenterZ
     );
     const v2 = new THREE.Vector3(
-        (p2x / VIDEO_WIDTH - 0.5) * 2,
-        (1 - p2.y / VIDEO_HEIGHT - 0.5) * 1.5,
-        (p2.z || 0) * 0.5 + poseCenterZ
+        (p2x / VIDEO_WIDTH - 0.5) * X_SCALE,
+        (1 - p2.y / VIDEO_HEIGHT - 0.5) * Y_SCALE,
+        (p2.z || 0) * Z_SCALE + poseCenterZ
     );
     return v2.clone().sub(v1).normalize();
 }
 
-// This is the core, complex function. It's simplified.
-function updateBoneTransform(bone, targetDirection, initialRotQuat, primaryAxis, upAxis) {
-    if (!bone || !targetDirection) return;
+// 更新骨骼朝向 (简化版)
+function updateBoneTransform(boneNameKey, startKp, endKp, keypointsMap, poseCenterZ) {
+    const boneMappedName = boneMapping[boneNameKey];
+    const bone = characterBones[boneMappedName];
+    const initialData = initialBoneData[boneMappedName];
 
-    // We want to rotate the bone so its `primaryAxis` (in local space) aligns with `targetDirection` (in world space).
-    // 1. Get bone's parent's world-to-local matrix
-    const parent = bone.parent;
-    const parentWorldInverse = new THREE.Matrix4();
-    if (parent) {
-        parentWorldInverse.copy(parent.matrixWorld).invert();
+    if (!bone || !initialData) return;
+
+    const targetWorldDirection = getDirectionVector(startKp, endKp, keypointsMap, poseCenterZ);
+    if (!targetWorldDirection) { // 如果无法获取方向，则尝试恢复初始姿态
+        // bone.quaternion.slerp(initialData.initialQuaternion, 0.1); // 平滑恢复
+        return;
     }
 
-    // 2. Transform targetDirection from world to parent's local space
-    const localTargetDirection = targetDirection.clone().transformDirection(parentWorldInverse);
+    const parent = bone.parent;
+    const parentWorldInverse = new THREE.Matrix4();
+    if (parent && parent.isObject3D) { // 确保父对象是Object3D以获取matrixWorld
+        parentWorldInverse.copy(parent.matrixWorld).invert();
+    }
+    // 如果没有有效父对象或父对象不是Object3D (例如直接是Scene)，则parentWorldInverse保持为单位矩阵
 
-    // 3. Calculate rotation from primaryAxis to localTargetDirection
-    const rotation = new THREE.Quaternion().setFromUnitVectors(primaryAxis, localTargetDirection);
+    const localTargetDirection = targetWorldDirection.clone().transformDirection(parentWorldInverse);
 
-    // 4. Apply this rotation to the bone's initial (bind pose) quaternion
-    bone.quaternion.copy(initialRotQuat).multiply(rotation);
+    // 从BONE_PRIMARY_AXIS（骨骼的静止局部指向）旋转到localTargetDirection
+    const rotation = new THREE.Quaternion().setFromUnitVectors(BONE_PRIMARY_AXIS.clone(), localTargetDirection.normalize());
+    bone.quaternion.copy(initialData.initialQuaternion).multiply(rotation);
 }
 
 
 function updateCharacterPose(pose) {
     if (!characterModel || Object.keys(characterBones).length === 0 || !pose) return;
 
-    const keypointsMap = new Map(pose.keypoints.map(kp => [kp.name, kp]));
+    const keypointsMap = getKeypointsMap(pose);
 
-    // Estimate a central Z depth for the pose to offset Z values from MoveNet
     const lh = keypointsMap.get('left_hip');
     const rh = keypointsMap.get('right_hip');
-    let poseCenterZ = 0.5; // Default Z offset
-    if (lh && rh && lh.score > 0.3 && rh.score > 0.3) {
-        poseCenterZ = ((lh.z || 0) + (rh.z || 0)) / 2 * 0.5 + 0.3; // Average hip Z, scale, and offset
+    let poseCenterZ = 0.0; // 默认Z偏移
+    if (lh && rh && lh.score > 0.3 && rh.score > 0.3 && typeof lh.z === 'number' && typeof rh.z === 'number') {
+        // MoveNet的Z值通常是以臀部中心为0，向前为负，向后为正，且范围可能较大。
+        // 我们需要将其规范化并可能缩放到适合我们场景的范围。
+        // 这里的计算方式非常依赖于具体模型和场景设置。
+        poseCenterZ = -((lh.z + rh.z) / 2) * 0.002; // 示例：取平均并缩放，负号可能用于调整前后
     }
 
-
-    // --- Root bone (Hips) ---
-    // For simplicity, let's try to orient the hips bone based on the general torso direction
-    // This is very basic and might not look great without a full body IK or more sophisticated approach.
+    // 躯干和臀部 (非常简化, 实际效果依赖骨骼命名和层级)
     const hipsBoneName = boneMapping['hips'];
-    if (hipsBoneName && characterBones[hipsBoneName]) {
+    const chestBoneName = boneMapping['chest']; // 或 'spine'
+    if (hipsBoneName && characterBones[hipsBoneName] && initialBoneData[hipsBoneName]) {
+        // 尝试根据左右肩和左右臀的中心点来轻微调整臀部/躯干的朝向
+        // 这部分逻辑非常复杂，难以用简单方式完美实现，以下为概念性代码
         const ls = keypointsMap.get('left_shoulder');
         const rs = keypointsMap.get('right_shoulder');
-
         if (ls && rs && lh && rh) {
-            const shoulderMidX = VIDEO_WIDTH - (ls.x + rs.x) / 2; // Mirrored X
-            const hipMidX = VIDEO_WIDTH - (lh.x + rh.x) / 2;       // Mirrored X
-            
-            const angle = Math.atan2(
-                (1 - (ls.y + rs.y) / 2 / VIDEO_HEIGHT) - (1 - (lh.y + rh.y) / 2 / VIDEO_HEIGHT), // Y diff
-                (shoulderMidX / VIDEO_WIDTH) - (hipMidX / VIDEO_WIDTH)  // X diff
-            );
-            // Apply a rotation around Z axis (if model is Y-up) or Y axis (if Z-up)
-            // This is a very crude hip rotation.
-            const hipsBone = characterBones[hipsBoneName];
-            const initialRot = initialBoneData[hipsBoneName].initialQuaternion;
-            // Assuming model is Y-up, and hips twisting is around Y
-            const twistQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), angle - Math.PI/2);
-            // hipsBone.quaternion.copy(initialRot).multiply(twistQuat);
+            const shoulderMid = { x: (ls.x + rs.x) / 2, y: (ls.y + rs.y) / 2, z: (ls.z + rs.z) / 2 };
+            const hipMid = { x: (lh.x + rh.x) / 2, y: (lh.y + rh.y) / 2, z: (lh.z + rh.z) / 2 };
+            // 可以用 hipMid -> shoulderMid 向量来影响hips或spine的旋转，但这需要精确的骨骼轴对齐
         }
     }
 
 
-    // --- Orient Limbs ---
-    // (kp1_name, kp2_name, bone_map_key_for_bone_between_kp1_and_kp2, primary_axis_of_bone)
-    const limbSegments = [
-        { start: 'left_shoulder', end: 'left_elbow', boneKey: 'left_arm' },
-        { start: 'left_elbow', end: 'left_wrist', boneKey: 'left_elbow' }, // Note: 'left_elbow' here is the FOREARM bone
-        { start: 'right_shoulder', end: 'right_elbow', boneKey: 'right_arm' },
-        { start: 'right_elbow', end: 'right_wrist', boneKey: 'right_elbow' },
-        { start: 'left_hip', end: 'left_knee', boneKey: 'left_hip' }, // 'left_hip' is UPLEG bone
-        { start: 'left_knee', end: 'left_ankle', boneKey: 'left_knee' }, // 'left_knee' is LEG bone
-        { start: 'right_hip', end: 'right_knee', boneKey: 'right_hip' },
-        { start: 'right_knee', end: 'right_ankle', boneKey: 'right_knee' },
-    ];
+    // 四肢
+    updateBoneTransform('left_arm', 'left_shoulder', 'left_elbow', keypointsMap, poseCenterZ);
+    updateBoneTransform('left_elbow', 'left_elbow', 'left_wrist', keypointsMap, poseCenterZ);
+    updateBoneTransform('right_arm', 'right_shoulder', 'right_elbow', keypointsMap, poseCenterZ);
+    updateBoneTransform('right_elbow', 'right_elbow', 'right_wrist', keypointsMap, poseCenterZ);
 
-    limbSegments.forEach(seg => {
-        const boneName = boneMapping[seg.boneKey];
-        const bone = characterBones[boneName];
-        const initialRot = initialBoneData[boneName]?.initialQuaternion;
+    updateBoneTransform('left_hip', 'left_hip', 'left_knee', keypointsMap, poseCenterZ);
+    updateBoneTransform('left_knee', 'left_knee', 'left_ankle', keypointsMap, poseCenterZ);
+    updateBoneTransform('right_hip', 'right_hip', 'right_knee', keypointsMap, poseCenterZ);
+    updateBoneTransform('right_knee', 'right_knee', 'right_ankle', keypointsMap, poseCenterZ);
 
-        if (bone && initialRot) {
-            const direction = getDirectionVector(seg.start, seg.end, keypointsMap, poseCenterZ);
-            if (direction) {
-                updateBoneTransform(bone, direction, initialRot, BONE_PRIMARY_AXIS.clone(), BONE_UP_AXIS.clone());
-            }
-        }
-    });
+    // 头部
+    const headBone = characterBones[boneMapping['head']];
+    const neckBone = characterBones[boneMapping['neck']];
+    const nose = keypointsMap.get('nose');
 
-    // --- Head Orientation (Simplified) ---
-    const headBoneName = boneMapping['head'];
-    const neckBoneName = boneMapping['neck'];
-    const headBone = characterBones[headBoneName];
-    const neckBone = characterBones[neckBoneName];
+    if (headBone && initialBoneData[boneMapping['head']] && nose && nose.score > 0.3) {
+        const ls = keypointsMap.get('left_shoulder');
+        const rs = keypointsMap.get('right_shoulder');
+        if (ls && rs) {
+            const shoulderMidY = (ls.y + rs.y) / 2;
+            // 简化头部倾斜和摇摆
+            const headTilt = -(nose.y - shoulderMidY) * 0.003; // Y方向差异影响X轴旋转 (上下看)
+            const headPan = (VIDEO_WIDTH/2 - (VIDEO_WIDTH - nose.x)) * 0.003; // X方向差异影响Y轴旋转 (左右看)
 
-    if (headBone && initialBoneData[headBoneName]?.initialQuaternion) {
-        const nose = keypointsMap.get('nose');
-        const leftEar = keypointsMap.get('left_ear');
-        const rightEar = keypointsMap.get('right_ear');
-
-        if (nose && leftEar && rightEar && nose.score > 0.3 && leftEar.score > 0.3 && rightEar.score > 0.3) {
-             // Simplified: Make head look slightly up/down based on nose Y relative to ears Y
-            const earMidY = (leftEar.y + rightEar.y) / 2;
-            const tilt = (nose.y - earMidY) * 0.01; // Small factor
-
-            // Pan left/right based on nose X relative to ears X (mirrored)
-            const earMidX = VIDEO_WIDTH - (leftEar.x + rightEar.x) / 2;
-            const noseX = VIDEO_WIDTH - nose.x;
-            const pan = (noseX - earMidX) * 0.01;
-
-            const initialRot = initialBoneData[headBoneName].initialQuaternion;
-            const tiltQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), -tilt); // Tilt around X
-            const panQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), pan);   // Pan around Y
-
+            const initialRot = initialBoneData[boneMapping['head']].initialQuaternion;
+            const tiltQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), headTilt);
+            const panQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), headPan);
             headBone.quaternion.copy(initialRot).multiply(panQuat).multiply(tiltQuat);
 
-            // Neck can try to follow head slightly or be oriented by shoulder-nose vector
-            if (neckBone && initialBoneData[neckBoneName]?.initialQuaternion) {
-                const neckInitialRot = initialBoneData[neckBoneName].initialQuaternion;
-                neckBone.quaternion.copy(neckInitialRot).slerp(headBone.quaternion, 0.3); // Neck follows head with some lag/damping
+            if (neckBone && initialBoneData[boneMapping['neck']]) {
+                 // 脖子稍微跟随头部
+                neckBone.quaternion.copy(initialBoneData[boneMapping['neck']].initialQuaternion).slerp(headBone.quaternion, 0.5);
             }
         }
     }
 }
 
-
 // --- Main Animation Loop ---
 async function predictAndAnimate() {
-    if (!detector || videoElement.readyState < HTMLMediaElement.HAVE_METADATA) {
+    if (!detector || !characterModel || videoElement.readyState < HTMLMediaElement.HAVE_METADATA || videoElement.paused || videoElement.ended) {
         rafId = requestAnimationFrame(predictAndAnimate);
         return;
     }
 
     try {
         const poses = await detector.estimatePoses(videoElement, {
-            flipHorizontal: false, // Input to MoveNet should be non-mirrored
-            // maxPoses: 1 // Already default for single pose models
+            flipHorizontal: false // MoveNet通常期望非镜像输入
         });
 
         if (poses && poses.length > 0) {
             updateCharacterPose(poses[0]);
         }
     } catch (error) {
-        console.error("Error during pose estimation or animation:", error);
-        // Stop animation to prevent infinite loop on error
-        // cancelAnimationFrame(rafId);
-        // statusElement.textContent = "动画错误，请检查控制台。";
+        console.error("姿态估计或动画更新错误:", error);
     }
+
+    // 如果使用了 AnimationMixer (FBX内嵌动画)，在这里更新：
+    // if (mixer) mixer.update(clock.getDelta());
 
     renderer.render(scene, camera);
     rafId = requestAnimationFrame(predictAndAnimate);
@@ -410,26 +382,32 @@ async function predictAndAnimate() {
 async function main() {
     statusElement.textContent = '应用启动中...';
     try {
-        initThree();
-        await loadPoseDetector();
-        await setupWebcam(); // This will set videoAspectRatio
-        await loadFBXModel(MODEL_PATH); // Load your specific model
+        initThree(); // 初始化3D场景
+        await loadPoseDetector(); // 加载姿态检测模型
+        await setupWebcam(); // 设置摄像头
+        await loadFBXModel(MODEL_PATH); // 加载FBX模型
 
-        statusElement.textContent = '准备就绪。请对准摄像头开始动作。';
-        predictAndAnimate();
+        statusElement.textContent = '准备就绪，请开始动作！';
+        predictAndAnimate(); // 开始主循环
 
     } catch (error) {
-        console.error("初始化失败:", error);
-        statusElement.textContent = `初始化过程中发生严重错误: ${error.message || error}`;
+        console.error("初始化主流程失败:", error);
+        statusElement.textContent = `初始化失败: ${error.message || error}`;
     }
 }
 
+// --- Event Listeners ---
 window.addEventListener('load', main);
 
 window.addEventListener('beforeunload', () => {
-    if (rafId) cancelAnimationFrame(rafId);
-    if (detector) detector.dispose();
-    if (videoElement.srcObject) {
-        videoElement.srcObject.getTracks().forEach(track => track.stop());
+    if (rafId) {
+        cancelAnimationFrame(rafId);
     }
-});
+    if (detector) {
+        // @ts-ignore
+        detector.dispose(); // 清理detector
+    }
+    if (videoElement.srcObject) {
+        // @ts-ignore
+        videoElement.srcObject.getTracks().forEach(track => track.stop()); // 停止摄像头
+    }
