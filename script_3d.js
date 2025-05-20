@@ -411,3 +411,4 @@ window.addEventListener('beforeunload', () => {
         // @ts-ignore
         videoElement.srcObject.getTracks().forEach(track => track.stop()); // 停止摄像头
     }
+}
