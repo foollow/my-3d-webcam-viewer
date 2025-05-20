@@ -17,7 +17,7 @@ const VIDEO_WIDTH = 640; // Pose Detection 使用的分辨率
 const VIDEO_HEIGHT = 480;
 
 // 骨骼的局部主轴（指向骨骼长度方向的轴）- 这只是一个猜测，您可能需要调整
-const BONE_PRIMARY_AXIS = new THREE.Vector3(1, 0, 0); // 假设X轴沿骨骼长度方向
+const BONE_PRIMARY_AXIS = new THREE.Vector3(0, 1, 0); // 假设Y轴沿骨骼长度方向
 // 骨骼的局部上方向 - 用于 setFromUnitVectors
 // const BONE_UP_AXIS = new THREE.Vector3(0, 0, 1); // 假设Z轴是骨骼的“上”方向
 
