@@ -411,4 +411,20 @@ window.addEventListener('beforeunload', () => {
         // @ts-ignore
         videoElement.srcObject.getTracks().forEach(track => track.stop()); // 停止摄像头
     }
-}
+    // 可选: 清理Three.js资源，如果需要更彻底的内存管理
+    // if (scene) {
+    //     scene.traverse(object => {
+    //         if (object.isMesh) {
+    //             if (object.geometry) object.geometry.dispose();
+    //             if (object.material) {
+    //                 if (Array.isArray(object.material)) {
+    //                     object.material.forEach(mat => mat.dispose());
+    //                 } else {
+    //                     object.material.dispose();
+    //                 }
+    //             }
+    //         }
+    //     });
+    // }
+    // if(renderer) renderer.dispose();
+});
