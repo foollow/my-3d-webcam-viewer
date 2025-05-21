@@ -357,7 +357,7 @@ function updateCharacterPose(pose) {
             const headPan = (VIDEO_WIDTH/2 - (VIDEO_WIDTH - nose.x)) * 0.003; // X方向差异影响Y轴旋转 (左右看)
 
             const initialRot = initialBoneData[boneMapping['head']].initialQuaternion;
-            const tiltQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), headTilt);
+            const tiltQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), headTilt);
             const panQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), headPan);
             headBone.quaternion.copy(initialRot).multiply(panQuat).multiply(tiltQuat);
 
